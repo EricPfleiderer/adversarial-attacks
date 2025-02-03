@@ -6,7 +6,7 @@ class GeneticAdversary:
 
     def __init__(self, trainable: TorchTrainable, N: int = 10, epochs=500,
                  selective_pressure: float = 0.2, mutation_size=0.001, asexual_repro: float = 1, epsilon: float = 0.01,
-                 uncertainty_power: int = 2, sameness_power: int = 4):
+                 uncertainty_power: int = 2, sameness_power: int = 4, history_iters=50):
 
         """
         :param x: Batch of NX1X28x28 torch tensor images.
@@ -35,6 +35,7 @@ class GeneticAdversary:
         self.uncertainty_power = uncertainty_power
         self.sameness_power = sameness_power
 
+        self.history_iters = history_iters
         self.history = {
             'certainty': [],
             'distance': [],
@@ -66,14 +67,14 @@ class GeneticAdversary:
             parents_idx = torch.stack(parents_idx)
 
             children = self.generate_children(population, parents_idx)
-            children += torch.logical_not(torch.eq(image, 0)) * torch.normal(0, self.mutation_size, size=children.shape).to(self.trainable.device)
+            children += torch.normal(0, self.mutation_size, size=children.shape).to(self.trainable.device) # * torch.logical_not(torch.eq(image, 0))
             children = torch.clamp(children, -1, 1)
 
             curr_solution = population[rank[-1]]
             population = children
             population[0] = curr_solution
 
-            if i % 50 == 0:
+            if i % self.history_iters == 0:
                 self.history['distance'].append(torch.sum(curr_solution ** self.sameness_power).detach().item())
                 self.history['certainty'].append(self.trainable(image + curr_solution)[0][target].detach().item())
                 self.history['predictions'].append(self.trainable(image + curr_solution).cpu().detach().numpy())

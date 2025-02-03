@@ -3,17 +3,14 @@ import logging
 from enum import Enum
 
 import matplotlib.pyplot as plt
-import ray
 import torch.cuda
-from ray import tune, train
-from ray.tune.schedulers import HyperBandForBOHB
-from ray.tune.search.bohb import TuneBOHB
-from torchvision import datasets
-from torchvision.transforms import transforms
 import numpy as np
+from datetime import datetime
+
 from python.supported_datasets import SupportedDatasets
 from python.adversarial import GeneticAdversary
 from python.trainables import TorchTrainable
+from python.utils import create_video
 
 
 def set_logging(level) -> None:
@@ -67,9 +64,10 @@ if __name__ == '__main__':
             'asexual_repro': 1.,
             'selective_pressure': 0.3,
             'mutation_size': 0.001,
-            'epsilon': 0.001,
+            'epsilon': 0.01,
             'uncertainty_power': 2,
             'sameness_power': 2,  # Must be even.
+            'history_iters': 50,
         },
     }
 
@@ -79,7 +77,7 @@ if __name__ == '__main__':
     # trainable.plot_history(path='outs/')
 
     # 10, 11
-    index = 10
+    index = 11
 
     image = trainable.train_ds[index][0].to(trainable.device)
     target = torch.unsqueeze(torch.tensor(trainable.train_ds[index][1]), dim=0)
@@ -96,8 +94,6 @@ if __name__ == '__main__':
 
     print(f'The classifier believes the adversarial image is a {torch.argmax(adv_preds)} with a confidence of {adv_preds[torch.argmax(adv_preds)]}')
 
-    from datetime import datetime
-
     # for pred, sol in zip(adversary.history['predictions'], adversary.history['solutions']):
     for i in range(len(adversary.history['predictions'])):
 
@@ -113,11 +109,20 @@ if __name__ == '__main__':
         axs[0, 1].set_title('Adversarial sample')
         axs[1, 0].bar(np.arange(0, 10), preds)
         axs[1, 0].set_title('Predictions')
-        axs[1, 1].plot(np.arange(0, len(distance)), distance)
-        axs[1, 1].plot(np.arange(0, len(certainty)), certainty)
+        axs[1, 0].set_xlabel('Class label')
+        axs[1, 0].set_ylabel('Certainty')
+        axs[1, 0].set_ylim(0, 1)
+        axs[1, 1].plot(np.arange(0, len(distance)) * params['adversary']['history_iters'], distance, label='distance')
+        axs[1, 1].plot(np.arange(0, len(certainty)) * params['adversary']['history_iters'], certainty, label='certainty')
+        axs[1, 1].set_xlabel('Iteration')
+        axs[1, 1].set_ylabel('Loss')
+        axs[1, 1].set_title('Losses')
+        fig.tight_layout(pad=2.5)
         plt.savefig(f'outs/recap_{datetime.now()}.png')
 
 
-    x=10
+    create_video('outs', 'recap.avi')
+
+
 
 
